@@ -1,177 +1,183 @@
-# Bookmark-Saver
 # Bookmark Saver
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+[![Python Version](https://img.shields.io/badge/python-3.7%2B-blue)](https://www.python.org/) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## Table of Contents
-
-* [Overview](#overview)
-* [Features](#features)
-* [Requirements](#requirements)
-* [Installation](#installation)
-
-  * [Option A: Python Script](#option-a-python-script)
-  * [Option B: Windows Installer](#option-b-windows-installer)
-* [Usage](#usage)
-* [Configuration](#configuration)
-* [Scheduled Backups](#scheduled-backups)
-* [Uninstallation](#uninstallation)
-* [Troubleshooting](#troubleshooting)
-* [Contributing](#contributing)
-* [License](#license)
-* [Author](#author)
+A cross-platform Python tool that automatically backs up your Firefox bookmarks every day, exporting both the raw `places.sqlite` database and a human-readable HTML file.
 
 ---
 
-## Overview
+## 🚀 Features
 
-**Bookmark Saver** is a simple utility that automatically backs up your Firefox bookmarks daily. It:
-
-1. Locates your default Firefox profile across Windows, macOS, and Linux.
-2. Copies the `places.sqlite` database to a timestamped backup directory.
-3. Exports all bookmarks into a human-readable HTML file.
-4. Can be run directly as a Python script or installed as a Windows application with a native installer.
-
-Use this tool to ensure you never lose your bookmarks—even if your profile gets corrupted.
-
----
-
-## Features
-
-* Cross-platform profile detection (Windows, macOS, Linux)
-* Atomic backup of Firefox’s `places.sqlite`
-* HTML export of all bookmarks (organized alphabetically)
-* Daily automated scheduling via the built‑in scheduler
-* Optionally packaged as a one‑file Windows executable
+- **Daily Automated Backups** of Firefox `places.sqlite`  
+- **HTML Export** of all bookmarks for easy browsing  
+- **Configurable** backup time, directory, and retention policy via CLI flags or JSON config  
+- **Rotating Logs** (file + console) for auditability  
+- **Email Notifications** on success or failure (SMTP)  
+- **Cloud Sync** to AWS S3  
+- **Retention Policy**: auto-prune backups older than _N_ days  
+- **Service/Daemon Support**  
+  - Windows Task Scheduler  
+  - Linux `systemd` unit & timer  
+- **Minimal Tkinter GUI** for interactive settings  
 
 ---
 
-## Requirements
+## 🛠 Installation
 
-* Python 3.7 or higher
-* [schedule](https://pypi.org/project/schedule/) Python package (for script scheduling)
-* (For Windows installer) [PyInstaller](https://www.pyinstaller.org/) and [Inno Setup](https://jrsoftware.org/) to build
-
----
-
-## Installation
-
-### Option A: Python Script
-
-1. **Clone this repo**
-
+1. **Clone the repo**  
    ```bash
-   git clone https://github.com/yourusername/bookmark-saver.git
-   cd bookmark-saver
+   git clone https://github.com/jobrien987/Bookmark-Saver.git
+   cd Bookmark-Saver
    ```
 
-2. **Install dependencies**
-
+2. **Install dependencies**  
    ```bash
-   pip install schedule
+   pip install schedule boto3
    ```
-
-3. **Run the script**
-
-   ```bash
-   python bookmark_saver.py
-   ```
-
-This will perform an immediate backup and then continue running, triggering a backup daily at 02:00 by default.
-
-### Option B: Windows Installer
-
-Built using PyInstaller and Inno Setup.
-
-1. **Build the EXE**
-
-   ```powershell
-   pyinstaller --onefile --name bookmark_saver bookmark_saver.py
-   ```
-
-   The output will appear in `dist\bookmark_saver.exe`.
-
-2. **Compile the installer**
-
-   * Open `bookmark_saver_installer.iss` in Inno Setup.
-   * Click **Compile** (F9).
-   * The installer `BookmarkSaverInstaller.exe` will appear in the `Output\` folder.
-
-3. **Run the installer**
-   Double-click `BookmarkSaverInstaller.exe` and follow the prompts.
+   > Tkinter comes bundled with most Python installs.
 
 ---
 
-## Usage
+## ⚙️ Configuration
 
-After installation or script launch, backups are written under:
+On first run the tool will generate a default config file at:
 
-```text
-~/firefox_bookmark_backups/
-  places_YYYYMMDD_HHMMSS.sqlite
-  bookmarks_YYYYMMDD_HHMMSS.html
+- **Windows:** `%APPDATA%\bookmark_saver\config.json`  
+- **macOS/Linux:** `~/.bookmark_saver/config.json`
+
+### Using the GUI
+```bash
+python bookmark_saver.py --gui
+```
+Fill in:
+- **Backup Time** (HH:MM, 24-hour)
+- **Backup Directory** (absolute path)
+- **Retention (days)**
+
+### Manual Edit
+Open `config.json` in your editor and adjust:
+```jsonc
+{
+  "backup_time": "02:00",
+  "backup_dir": "C:\Users\You\BookmarkBackups",
+  "retention_days": 30,
+  "logging": {
+    "log_file": "C:\Users\You\AppData\Roaming\bookmark_saver\bookmark_saver.log",
+    "level": "INFO"
+  },
+  "email": {
+    "smtp_server": "smtp.example.com",
+    "smtp_port": 587,
+    "username": "you@example.com",
+    "password": "yourpassword",
+    "to_addr": "notify@example.com"
+  },
+  "s3": {
+    "aws_access_key": "AKIA…",
+    "aws_secret_key": "…",
+    "bucket": "my-firefox-backups"
+  }
+}
 ```
 
-Open the `.html` file in any browser to view your saved bookmarks.
+---
+
+## ▶️ Usage
+
+### One-time Backup
+```bash
+python bookmark_saver.py --once
+```
+
+### Continuous Daemon
+```bash
+python bookmark_saver.py
+```
+• Performs an immediate backup, then schedules daily at your configured time.
 
 ---
 
-## Configuration
+## 🗓 Automate as a Service
 
-* **Backup time**: Set the `FIREFOX_BACKUP_TIME` environment variable to change the daily backup time (format: `HH:MM`, 24‑hour).
+### Windows Task Scheduler
+Run PowerShell **as Administrator**:
+```powershell
+schtasks /create /sc daily /tn "Bookmark Saver" `
+  /tr "C:\Path\To\python.exe C:\…\bookmark_saver.py --once" `
+  /st 02:00
+```
 
-* **Backup directory**: By default, backups go to `~/firefox_bookmark_backups`. To change this, edit the `backup_dir` path in the script.
+### Linux systemd
+Place the files in `/etc/systemd/system/`:
+
+**bookmark-saver.service**  
+```ini
+[Unit]
+Description=Daily Firefox Bookmark Saver
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/bookmark_saver/bookmark_saver.py --once
+User=youruser
+```
+
+**bookmark-saver.timer**  
+```ini
+[Unit]
+Description=Run Bookmark Saver daily at 02:00
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable & start:
+```bash
+sudo systemctl enable --now bookmark-saver.timer
+```
 
 ---
 
-## Scheduled Backups
+## 📂 Output & Logs
 
-The Python script uses the `schedule` library to trigger backups daily at the configured time. To run it automatically on system startup:
-
-* **Windows**: Add a shortcut to `bookmark_saver.exe` in your Startup folder.
-* **Linux/macOS**: Create a cron job, e.g.:
-
-  ```cron
-  @reboot /usr/bin/env python3 /path/to/bookmark_saver.py
+- **Backups:**  
+  Folder structure under `backup_dir`:
   ```
+  YYYY-MM-DDTHH-MM-SS/
+    ├── places.sqlite
+    └── bookmarks.html
+  ```
+- **Log File:**  
+  - Windows: `%APPDATA%\bookmark_saver\bookmark_saver.log`  
+  - macOS/Linux: `~/.bookmark_saver/bookmark_saver.log`
 
 ---
 
-## Uninstallation
+## 🛠 Troubleshooting
 
-* **Script**: simply delete the script and backup folder.
-* **Installer**: use **Add/Remove Programs** on Windows to uninstall "Bookmark Saver".
-
----
-
-## Troubleshooting
-
-* **`profiles.ini not found`**: Ensure Firefox has been run at least once and you have a default profile.
-* **Permission errors**: On Linux/macOS, you may need `chmod +x bookmark_saver.py` or run with `sudo` if backing up system‑protected folders.
-* **Scheduler not running**: Verify the script/process is active; check logs or console output for errors.
+- **Profile not found?**  
+  Ensure Firefox is installed and you have a `*.default` or `*.default-release` folder under your profiles directory:
+  - Windows: `%APPDATA%\Mozilla\Firefox\Profiles`  
+  - macOS/Linux: `~/.mozilla/firefox`
+- **Database locked?**  
+  Close Firefox (or make sure no other process is using `places.sqlite`) before running.
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/YourFeature`)
-3. Commit your changes (`git commit -m "Add feature XYZ"`)
-4. Push to the branch (`git push origin feature/YourFeature`)
-5. Open a Pull Request
+1. Fork the repo  
+2. Create a feature branch (`git checkout -b feature/awesome`)  
+3. Commit your changes (`git commit -m "Add awesome feature"`)  
+4. Push to your branch (`git push origin feature/awesome`)  
+5. Open a Pull Request  
 
-Please follow the [PEP8 style guide](https://www.python.org/dev/peps/pep-0008/) and include tests where applicable.
-
----
-
-## License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+Please follow the existing code style and add tests where possible.
 
 ---
 
-## Author
+## 📄 License
 
-**Jeremiah O'Brien** ([jayobrien987@gmail.com](mailto:jayobrien987@gmail.com))
-
-Feedback and suggestions welcome!")
+This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.
